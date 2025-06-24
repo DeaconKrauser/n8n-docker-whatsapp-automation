@@ -1,0 +1,81 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+    labels:
+      - "project.name=Automation Stack"
+      - "project.service=Database"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    labels:
+      - "project.name=Automation Stack"
+      - "project.service=Cache"
+
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: evolution_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    networks:
+      - app_network
+    labels:
+      - "project.name=Automation Stack"
+      - "project.service=WhatsApp API"
+
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n_orchestrator
+    restart: always
+    ports:
+      - "5678:5678"
+    env_file:
+      - .env
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - app_network
+    labels:
+      - "project.name=Automation Stack"
+      - "project.service=Orchestrator"
+
+volumes:
+  postgres_data: {}
+  evolution_instances: {}
+  evolution_store: {}
+  n8n_data: {}
+  redis_data: {}
+
+networks:
+  app_network:
+    name: automation_network
